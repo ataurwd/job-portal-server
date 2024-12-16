@@ -1,14 +1,35 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser')
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 3000;
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true,
+}));
 
-
+app.use(cookieParser());
 app.use(express.json());
 app.use(cors());
+
+const checkValididy = (req, res, next) => { 
+  const token = req?.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ error: 'Access Denied. No token provided.' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ error: 'Invalid or expired token.' });
+    }
+    req.user = decoded; // Optionally pass user info
+    next();
+  });
+};
+
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -26,12 +47,25 @@ async function run() {
   try {
     await client.connect();
       await client.db("admin").command({ ping: 1 });
-      const jobPostCollection = client.db('jobs').collection('added-jobs');
+    const jobPostCollection = client.db('jobs').collection('added-jobs');
+    
+    // auth related api
+    app.post('/jwt', async(req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' });
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: false,
+
+        })
+        .send({success: true})
+    })
 
     // to get all added jobs
-      app.get('/added-jobs', async(req, res) => {
-          const result = await jobPostCollection.find().toArray()
-          res.json(result);
+      app.get('/added-jobs',checkValididy, async(req, res) => {
+        const result = await jobPostCollection.find().toArray()
+        res.json(result);
       })
 
     // to post jobs
@@ -74,6 +108,3 @@ app.get('/', (req, res) => {
 })
 
 app.listen(port)
-
-//q17oIBiFlJTMETOY
-//jobfinding809
