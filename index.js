@@ -13,7 +13,7 @@ app.use(cors({
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(cors());
+// app.use(cors());
 
 const checkValididy = (req, res, next) => { 
   const token = req?.cookies?.token;
@@ -62,8 +62,20 @@ async function run() {
         .send({success: true})
     })
 
+    // clear cookies when logout
+    app.post('/logout', async (req, res) => {
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: false,
+      })
+      .send({success : true})
+    })
+
     // to get all added jobs
-      app.get('/added-jobs',checkValididy, async(req, res) => {
+    app.get('/added-jobs', checkValididy, async (req, res) => {
+      if(req.user.email !== req.query.email){ 
+          return res.status(401).json({ error: 'Access Denied. User does not match.' });  // check user email if it's correct or not
+        }
         const result = await jobPostCollection.find().toArray()
         res.json(result);
       })
